@@ -1,0 +1,14 @@
+# Environnement et fichiers Python
+.venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# Projet Voiceprint : jamais sur GitHub
+data/
+models/
+*.wav
+*.mp3
+*.flac
+*.m4a
+*.npy
