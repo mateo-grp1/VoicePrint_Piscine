@@ -1,0 +1,23 @@
+caractéristique,colonne,décrit,fisher
+Hauteur moyenne (F0),f0_hz,grave ou aiguë,10.631091010044587
+MFCC 5,mfcc5,forme du spectre (timbre),3.929632567089853
+MFCC 2,mfcc2,forme du spectre (timbre),3.336863045850601
+MFCC 8,mfcc8,forme du spectre (timbre),3.264928688769676
+MFCC 7,mfcc7,forme du spectre (timbre),3.1339140134605192
+MFCC 6,mfcc6,forme du spectre (timbre),3.0572979650000227
+MFCC 9,mfcc9,forme du spectre (timbre),2.975145435311446
+MFCC 11,mfcc11,forme du spectre (timbre),2.795851327090622
+MFCC 4,mfcc4,forme du spectre (timbre),2.685514103821413
+MFCC 10,mfcc10,forme du spectre (timbre),2.614253041611879
+HNR,hnr_db,voix claire ou voilée (souffle),2.436282146813047
+MFCC 12,mfcc12,forme du spectre (timbre),2.411101389125293
+Shimmer,shimmer_pct,petites irrégularités de volume,2.0190251890176394
+Formant F3,f3_hz,longueur et forme du conduit vocal,1.929761452723131
+Centroïde spectral,centroide_hz,brillance du timbre,1.781524449217148
+MFCC 3,mfcc3,forme du spectre (timbre),1.751610648802582
+MFCC 1,mfcc1,forme du spectre (timbre),1.62686459264671
+Formant F1,f1_hz,ouverture de la bouche,1.5486994543569605
+Jitter,jitter_pct,petites irrégularités de hauteur,1.0350464221772406
+Variation de hauteur,f0_var_dt,voix monotone ou chantante,0.7941270456505972
+Formant F2,f2_hz,position de la langue (avant / arrière),0.6876004766306744
+Rythme (approx.),rythme_s,vitesse de parole,0.5104632448366996

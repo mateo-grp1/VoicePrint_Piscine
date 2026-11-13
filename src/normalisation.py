@@ -49,3 +49,15 @@ def as_norm(scores, A, B, cohorte, top_k=30):
     ma, sa = stats(A)
     mb, sb = stats(B)
     return 0.5 * ((scores - ma) / sa + (scores - mb) / sb)
+
+
+def seuil_validation(duree=3):
+    """Seuil à 1 % de fausses acceptations, mesuré au jour 3 sur la validation
+    (enrôlement de 3 s en un bloc, test de 3 s, moyenne soustraite, voix proches)."""
+    try:
+        r = pd.read_csv("results/enrolement_v2.csv")
+        r = r[(r["enrôlement"].str.strip() == f"{duree} s") & (r["calcul"] == "bloc")
+              & (r["réglage"] == "moyenne soustraite") & (r["test"] == "3s") & (r["négatives"] == "difficile")]
+        return float(r["seuil FA1%"].iloc[0])
+    except Exception:
+        return 0.362
