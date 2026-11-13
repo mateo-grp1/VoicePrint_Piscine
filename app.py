@@ -2,7 +2,8 @@
 # Enrôler une voix (3, 5 ou 10 s), vérifier une nouvelle voix, expliquer, supprimer l'empreinte.
 # Configuration retenue sur la validation : ECAPA + moyenne soustraite, enrôlement en un bloc,
 # seuil à 1 % d'imposteurs acceptés, confiance calibrée.
-# Prérequis : avoir lancé src/calibration.py (crée models/reference_demo.npz).
+# La voix est préparée par src/preparation.py : la MÊME recette que le banc d'essai v3.
+# Prérequis : avoir lancé src/build_bench_v3.py puis src/eval_v3.py (crée models/reference_demo.npz).
 # À lancer depuis la racine du projet : streamlit run app.py
 import io
 import json
@@ -10,17 +11,16 @@ import sys
 from pathlib import Path
 import numpy as np
 import librosa
-import torch
 import streamlit as st
 
 sys.path.insert(0, "src")
 from ecapa_eval import charger_modele                      # noqa: E402
 from normalisation import preparer, seuil_validation        # noqa: E402
 from caracteristiques import extraire, expliquer            # noqa: E402
+from preparation import (SR, TEST_MAX, charger_brut, empreinte_brute,  # noqa: E402
+                         enrolement, garder_parole, test as decouper_test)
 
-SR = 16000
 DUREES = [3, 5, 10]                                  # durées d'enrôlement proposées (secondes)
-TEST_MAX = 10                                        # parole analysée au maximum pour un test (secondes)
 AFFICHER_CONSEILS = False                            # conseils de qualité (volume, bruit) : désactivés pour l'instant
 EMPREINTE = Path("data/enrolement/empreinte.npz")    # data/ est exclu de GitHub
 REFERENCE = Path("models/reference_demo.npz")
@@ -43,9 +43,13 @@ def lire_npz(chemin):
 @st.cache_resource
 def reference():
     r = lire_npz(REFERENCE)
+    if "seuils" in r:     # banc v3 : seuils mesurés avec la même préparation que la démo
+        seuils = {int(d): float(s) for d, s in json.loads(str(r["seuils"])).items()}
+    else:                 # ancien fichier (banc v2)
+        seuils = {d: seuil_validation(d) for d in DUREES}
     return {"moyenne": r["moyenne"], "a": float(r["calib_a"]), "b": float(r["calib_b"]),
-            "ecart_intra": json.loads(str(r["ecart_intra"])),
-            "seuils": {d: seuil_validation(d) for d in DUREES}}
+            "ecart_intra": json.loads(str(r["ecart_intra"])), "seuils": seuils,
+            "banc": str(r["banc"]) if "banc" in r else "v2"}
 
 
 # ---------- Outils audio ----------
@@ -53,10 +57,8 @@ def lire_audio(fichier):
     """Audio du micro -> 16 kHz mono, puis on ne garde QUE la parole :
     les silences du début, de la fin ET les pauses au milieu sont retirés, puis les morceaux de parole sont recollés.
     Ainsi, "3 s d'enrôlement" = 3 s de voix réelle, pas 3 s dont une partie de silence."""
-    brut, _ = librosa.load(io.BytesIO(fichier.getvalue()), sr=SR, mono=True)
-    morceaux = librosa.effects.split(brut, top_db=30)
-    parole = np.concatenate([brut[a:b] for a, b in morceaux]) if len(morceaux) else brut[:0]
-    return brut, parole
+    brut = charger_brut(io.BytesIO(fichier.getvalue()))
+    return brut, garder_parole(brut)
 
 
 def qualite(brut):
@@ -92,9 +94,7 @@ def afficher_qualite(brut):
 
 def empreinte(y):
     """Empreinte ECAPA avec la moyenne du train soustraite (réglage retenu au jour 3)."""
-    with torch.no_grad():
-        e = modele().encode_batch(torch.tensor(y).unsqueeze(0)).squeeze().numpy()
-    return preparer(e, reference()["moyenne"])[0]
+    return preparer(empreinte_brute(modele(), y), reference()["moyenne"])[0]
 
 
 def confiance(score):
@@ -117,7 +117,8 @@ with st.sidebar:
     st.header("Réglages documentés")
     st.markdown("**Modèle** : ECAPA-TDNN pré-entraîné (speechbrain/spkrec-ecapa-voxceleb)\n\n"
                 "**Normalisation** : soustraction de l'empreinte moyenne (locuteurs d'entraînement)\n\n"
-                "**Seuils** (validation Common Voice, voix proches, 1 % d'imposteurs acceptés) :")
+                f"**Seuils** (validation Common Voice, banc {reference()['banc']}, voix proches, "
+                "1 % d'imposteurs acceptés) :")
     for d, s in reference()["seuils"].items():
         st.markdown(f"- enrôlement {d} s : **{s:.3f}**")
     st.caption("La confiance (%) est calibrée sur la validation, en supposant une chance sur deux au départ.")
@@ -144,7 +145,7 @@ else:
         else:
             st.write(f"Parole détectée : {parole:.1f} s → on garde les **{duree} premières secondes**.")
             if st.button("Enregistrer mon empreinte"):
-                y = y[:duree * SR]
+                y = enrolement(y, duree)
                 EMPREINTE.parent.mkdir(parents=True, exist_ok=True)
                 np.savez(EMPREINTE, emb=empreinte(y), duree=duree,
                          caracteristiques=json.dumps(extraire(y)))
@@ -172,7 +173,7 @@ else:
         if parole < 1.5:
             st.error("Trop court : parle au moins 3 secondes.")
         else:
-            y = y[:TEST_MAX * SR]
+            y = decouper_test(y)
             score = float(enr["emb"] @ empreinte(y))
             accepte = score >= seuil
             if accepte:
