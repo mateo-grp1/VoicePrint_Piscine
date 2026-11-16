@@ -12,3 +12,4 @@ models/
 *.flac
 *.m4a
 *.npy
+Claude output/
