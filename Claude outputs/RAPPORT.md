@@ -10,7 +10,7 @@ Le modèle ECAPA divise l'erreur par plus de trois : une EER de 2,1 % contre 6,8
 
 Nous avons ensuite construit un banc d'essai (banc v3) où chaque voix est préparée exactement comme dans l'application. Cela nous a fait passer d'un seuil de 0,362 à 0,416 pour un enrôlement de 3 s. Ces réglages, choisis sur 28 personnes, ont ensuite été vérifiés sur 290 nouvelles personnes (Common Voice 27.0). Cette vérification a conduit à un dernier ajustement : un seuil de **0,428** (3 s), 0,447 (5 s) et 0,482 (10 s), pour garantir au plus 1 % d'imposteurs acceptés sur toutes les validations.
 
-Enfin, le **test final**, réalisé une seule fois sur 29 personnes jamais utilisées, donne pour un enrôlement de 3 s : une **EER de 3,0 %**, **0 % d'imposteurs acceptés** et **11,6 % de vraies personnes refusées**.
+Enfin, le **test final**, réalisé une seule fois sur 29 personnes jamais utilisées, donne pour un enrôlement de 3 s : une **EER de 3,0 %**, **0 % d'imposteurs acceptés** et **11,6 % de vraies personnes refusées**. En conditions réelles, avec l'application finale, 22 essais sur 24 de l'auteur ont été acceptés, en trois langues.
 
 ## 1. Problème et protocole
 
@@ -19,11 +19,13 @@ Enfin, le **test final**, réalisé une seule fois sur 29 personnes jamais utili
 **Contrainte de la démo.** Une personne inconnue s'enrôle en 3 s environ (5 s ou 10 s sont aussi possibles). Ensuite, 5 à 10 personnes aux profils variés (selon leur âge, leur genre ou leur langue) parlent chacune environ 7 à 10 s. Le système doit reconnaître la personne enrôlée et ne pas réagir aux autres. À savoir : l'erreur la plus grave est d'accepter un imposteur.
 
 **Données.** Le détail est dans la [fiche des corpus](FICHE_CORPUS.md).
+
 - **Common Voice 26.0, français de France** : 5 282 clips, 7,45 h, 142 locuteurs, découpés **par locuteur** en 85 (train, 4,79 h), 28 (validation, 0,84 h) et 29 (test, 1,82 h).
 - **Common Voice 27.0, français (sous-ensemble)** : 945 locuteurs, séparés en environ 655 pour l'entraînement (metric learning) et 290 pour une grande validation. Aucun d'entre eux n'appartient à la validation ou au test cv26.
 - **Mini-corpus** : 2 personnes, 14 enregistrements (plusieurs langues, distance au micro), avec consentement.
 
 **Mesures**
+
 - **EER** : le taux d'erreur au seuil où les fausses acceptations égalent les faux rejets.
 - **minDCF** : un coût, de 0 (parfait) à 1 (aussi mauvais que tout refuser), calculé pour 5 % de vraies tentatives. Il pénalise surtout les imposteurs acceptés.
 - **AUC** : la probabilité qu'un essai de la vraie personne obtienne un meilleur score qu'un essai d'imposteur. 1 = parfait, 0,5 = hasard. Exemple : avec une AUC de 0,99, si on tire au hasard un essai de la vraie personne et un essai d'imposteur, le premier a le meilleur score dans 99 % des cas.
@@ -31,6 +33,7 @@ Enfin, le **test final**, réalisé une seule fois sur 29 personnes jamais utili
 - **FRR@FA1%** : la part de vraies personnes refusées quand on n'accepte que 1 % d'imposteurs. C'est le réglage de la démo.
 
 **Règles**
+
 - Tous les réglages (les seuils, la calibration, les choix d'epoch, la normalisation) sont faits sur la validation.
 - Le test reste fermé jusqu'à l'évaluation finale.
 - Toutes les approches sont comparées sur les mêmes paires.
@@ -60,6 +63,7 @@ Paires de validation v1 : 710 paires (355 positives, 355 négatives), 28 locuteu
 *Figure 2 — Courbes d'entraînement du petit réseau (MLP) : loss d'entraînement et de validation, EER de validation par epoch.*
 
 **Lecture des approches**
+
 - La **standardisation** compte énormément pour la baseline (19,0 % → 11,0 %). Sans elle, le MFCC 0, qui mesure le volume, écrase tous les autres coefficients dans le cosinus.
 - Apprendre sur **les paires** aide (6,8 %). Mais les classifieurs restent limités par la représentation (40 statistiques globales uniquement).
 - **ECAPA** a déjà appris sur environ 7 000 personnes ce qui distingue les voix. Score moyen si c'est la même personne : 0,688 ; personnes différentes : 0,147.
@@ -103,6 +107,7 @@ Durée de l'enrôlement (un seul bloc de parole, moyenne soustraite, test 3 s, v
 *Ce tableau vient d'un protocole propre à cette étape : enrôlement fait de plusieurs clips recollés, tests sur les autres clips de la personne, imposteurs = tous les clips des autres personnes. Ses chiffres ne sont pas directement comparables à ceux du banc v3 (section 3.4).*
 
 **Lecture des résultats**
+
 - Plus l'enrôlement est long, plus le système est fiable. Mais 3 s reste globalement fiable et utilisable.
 - Calculer l'empreinte d'un bloc ou faire la moyenne de morceaux de 3 s donne des résultats quasi identiques. On garde le bloc, plus simple et plus proche de la situation réelle le jour de la démo.
 - 2 s est abandonné : la dégradation est trop forte pour un gain de temps négligeable.
@@ -126,6 +131,7 @@ Durée de l'enrôlement (un seul bloc de parole, moyenne soustraite, test 3 s, v
 Le banc v2 prenait le milieu du clip brut, silences compris. La démo, elle, retire tous les silences et les pauses, puis garde les N premières secondes de parole selon la durée d'enrôlement choisie. Les seuils mesurés sur le banc v2 ne correspondaient donc pas exactement aux conditions du jour J.
 
 Le banc v3 reprend donc les **mêmes 960 paires** et prépare chaque voix avec la même fonction que l'application :
+
 - enrôlement de 3, 5 ou 10 s de parole ;
 - test de 3 s ou jusqu'à 10 s ;
 - bruit ajouté avant le retrait des silences, comme dans une vraie salle.
@@ -182,6 +188,7 @@ L'idée était d'ajouter au-dessus d'ECAPA gelé une petite couche apprise, qui 
 *Figure 3 — Metric learning v1 : la loss baisse pendant que le minDCF de validation monte.*
 
 **Observation : overfitting.** La loss d'entraînement est très basse dès les premières epochs et continue de baisser, pendant que la validation se dégrade. Les causes identifiées sont :
+
 1. trop peu de personnes (85, issues de Common Voice 26.0, contre environ 7 000 pour ECAPA) ;
 2. une triplet loss trop facile ;
 3. une couche trop libre ;
@@ -190,6 +197,7 @@ L'idée était d'ajouter au-dessus d'ECAPA gelé une petite couche apprise, qui 
 ### 4.2 Version 2 : AAM-softmax et 945 locuteurs
 
 Chaque cause est corrigée :
+
 1. Ajout de 945 locuteurs de Common Voice 27.0, équilibrés par hauteur de voix, sans aucun locuteur de validation ni de test cv26. 94 d'entre eux sont tenus à l'écart pour surveiller l'overfit.
 2. **AAM-softmax** (marge 0,2, échelle 30), la loss d'entraînement d'ECAPA.
 3. **Deux couches contraintes**, rappelées vers « ne rien changer » par une pénalité : *diagonale* (un poids par dimension, 192 paramètres) et *résiduelle de rang 32* (12 480 paramètres).
@@ -267,6 +275,7 @@ Les dimensions d'ECAPA prises **une par une** ont un ratio de Fisher moyen de 1,
 **Pourquoi cette étape.** Jusqu'ici, tous les réglages (moyenne, seuils, calibration) reposaient sur 28 personnes de validation. Avec seulement 320 imposteurs proches, le seuil à 1 % ne reposait que sur environ 3 imposteurs. Nous avons donc vérifié la configuration sur **290 personnes Common Voice 27.0** que le système final n'a jamais entendues.
 
 **Protocole.**
+
 - Personnes préparées exactement comme dans l'application, avec le même fichier de préparation de la voix, ce qui a été vérifié automatiquement.
 - Chaque personne s'enrôle une fois, puis tous les clips de test des 290 personnes passent devant elle.
 - Au total : 1 160 essais de la vraie personne et **83 808 essais d'imposteurs proches**. Le 1 % repose donc sur 838 imposteurs, au lieu d'environ 3.
@@ -282,6 +291,7 @@ Les dimensions d'ECAPA prises **une par une** ont un ratio de Fisher moyen de 1,
 | 10 s / ≤ 10 s | 0,7 % | 3,7 % | 0,6 % / 3,4 % |
 
 **Ce que montre cette étape**
+
 - **Les réglages généralisent** : le seuil choisi sur 28 personnes donne environ 1 % d'imposteurs acceptés sur 290 personnes jamais vues, avec un taux de refus comparable (5,6 % contre 5,3 %).
 - **Un écart à corriger** : avec un enrôlement de 3 s et un test jusqu'à 10 s, on arrive à 1,2 % d'imposteurs. Le seuil de 3 s doit donc monter légèrement (section 7).
 - **La calibration est confirmée** : sur des essais équilibrés, quand elle annonce 90-100 %, c'est la bonne personne dans 99,8 % des cas.
@@ -317,6 +327,7 @@ Elle a été vérifiée en l'apprenant sur la moitié des locuteurs et en la tes
 | 90 à 100 % | 91 | **99 %** | **99,8 %** | **100 %** |
 
 **Affichage dans la démo**
+
 - ✅ Personne acceptée : décision en grand, avec la confiance calibrée.
 - ❌ Personne refusée : décision sans pourcentage, pour éviter un « 65 % » affiché à côté d'un « non ».
 - Dans les deux cas, le score brut et le seuil sont affichés en petit.
@@ -324,6 +335,7 @@ Elle a été vérifiée en l'apprenant sur la moitié des locuteurs et en la tes
 ## 8. Test final
 
 **Protocole.** La configuration figée (ECAPA gelé, moyenne cv26 préparée comme l'application, seuils 0,428 / 0,447 / 0,482, calibration) est évaluée **une seule fois** sur les **29 personnes de test** cv26, qui n'ont servi à aucun réglage.
+
 - Chaque personne s'enrôle une fois ; jusqu'à 10 de ses autres clips servent de tests ; tous les tests passent devant tous les enrôlements.
 - Au total : 198 essais de la vraie personne et 5 544 essais d'imposteurs, dont 1 543 voix proches.
 - 14 enrôlements sont un peu plus courts que prévu, faute de parole (personnes avec peu de clips).
@@ -349,6 +361,7 @@ Contre tous les imposteurs (hasard et voix proches), en propre, l'EER est de 1,7
 *Figure 7 — Courbe ROC du test final (enrôlement 3 s, test jusqu'à 10 s, propre, voix proches).*
 
 **Lecture**
+
 - **Le système généralise** à des personnes jamais vues : EER de 3,0 % et AUC de 0,997 avec un enrôlement de 3 s.
 - **La sécurité est largement tenue** : 0 à 0,2 % d'imposteurs acceptés, même parmi les voix proches, pour 1 % autorisé.
 - **La calibration est fiable** : annoncé 90-100 % → la bonne personne dans 100 % des cas (section 7).
@@ -362,6 +375,7 @@ Contre tous les imposteurs (hasard et voix proches), en propre, l'EER est de 1,7
 ## 9. Démonstration
 
 **Configuration figée**
+
 - ECAPA gelé, avec soustraction de la moyenne « cv26 préparée comme l'application ».
 - Enrôlement de **3 s de parole** (un bloc, silences retirés) ; 5 s et 10 s sont aussi proposés.
 - Test jusqu'à 10 s de parole.
@@ -369,48 +383,65 @@ Contre tous les imposteurs (hasard et voix proches), en propre, l'EER est de 1,7
 
 **Étapes :** consentement → enrôlement → passages enchaînés des tests, avec un historique des décisions → explication « Pourquoi ? » → suppression de l'empreinte.
 
-**Figure 8 — à ajouter : capture d'écran de l'application** (une décision ✅ avec sa confiance, et l'historique des passages).
+![Figure 8 — Capture d'écran de l'application](capture_demo.png)
+
+*Figure 8 — L'application finale : voix enregistrée (3 s), test d'une nouvelle voix, décision « même personne » avec une confiance de 96 % (score 0,614, seuil 0,428).*
 
 **Tests en conditions réelles, au fil du projet**
+
 - **Démo v0** (enrôlement de 20 s) : 10 essais de l'auteur, tous corrects. Scores : français 0,66-0,77, espagnol 0,65, anglais 0,62, loin du micro 0,69. Autres personnes : 0,08-0,23.
 - **Mini-corpus** (enrôlement 3 s, ancien seuil de 0,362) : 12 essais sur 12 de la vraie personne acceptés (scores de 0,382 à 0,627), 0 autre personne acceptée sur 12 (score maximum 0,088), 2 imposteurs Common Voice acceptés sur 564.
 - **Démo v1, enrôlement 3 s** : quelques refus quand l'enrôlement est en anglais ou en espagnol et le test en français (scores de 0,230 et 0,341). Après le retrait des pauses internes, 4 essais anglais → français ont été acceptés (0,39 à 0,49).
-- **Démo avec les réglages finaux (seuil 0,428)** : la preuve chiffrée de la configuration finale est le test final (section 8). Les essais en direct ci-dessous sont à remplir lors de la répétition de la démo.
+- **Démo finale (seuil 0,428 pour 3 s, 0,447 pour 5 s)** : 4 enrôlements de l'auteur, puis, après chacun, 2 essais dans chaque langue (français, espagnol, anglais), soit 24 essais.
 
-| Personne | Enrôlement (langue, durée) | Test (langue, condition) | Score | Décision |
-|---|---|---|---|---|
-| Auteur | français, 3 s | français, normal | | |
-| Auteur | français, 3 s | anglais | | |
-| Auteur | français, 3 s | espagnol | | |
-| Auteur | français, 3 s | loin du micro | | |
-| Autre personne | — | français | | |
-| Auteur | anglais, 3 s | français | | |
+| Enrôlement | Tests en français | Tests en espagnol | Tests en anglais |
+|---|---|---|---|
+| Français, 5 s | 2 / 2 acceptés | 2 / 2 acceptés | 1 / 2 acceptés |
+| Français, 3 s | 2 / 2 acceptés | 2 / 2 acceptés (0,552) | 1 / 2 acceptés |
+| Espagnol, 3 s | 2 / 2 acceptés (0,47) | 2 / 2 acceptés (0,64) | 2 / 2 acceptés (0,59) |
+| Anglais, 3 s | 2 / 2 acceptés (0,614) | 2 / 2 acceptés (0,615) | 2 / 2 acceptés (0,516) |
+
+Bilan : **22 essais sur 24 acceptés**. Les 2 refus concernent un test en **anglais après un enrôlement en français**, avec des scores d'environ 0,35 et 0,39, sous le seuil. Ces essais ne portent que sur la vraie personne. La capacité à refuser les autres personnes est mesurée par le test final (section 8).
 
 ## 10. Cas d'échec
 
 **Échecs connus, mesurés**
-1. **Changement de langue avec un enrôlement très court.** En 3 s, l'empreinte dépend en partie des sons prononcés, et chaque langue a les siens. Un enrôlement en anglais ou en espagnol suivi d'un test en français fait baisser le score près du seuil, voire en dessous. Le sens inverse (enrôlement en français, test dans une autre langue) passe mieux.
+
+1. **Changement de langue avec un enrôlement très court.** En 3 s, l'empreinte dépend en partie des sons prononcés, et chaque langue a les siens. Avec la démo v1, un enrôlement en anglais ou en espagnol suivi d'un test en français faisait baisser le score près du seuil, voire en dessous. Avec l'application finale (section 9), ce sens passe bien (0,47 à 0,61), et ce sont deux tests en anglais après un enrôlement en français qui ont été refusés (environ 0,35 et 0,39). Le changement de langue reste donc le point fragile, sans qu'un sens soit systématiquement mauvais. Même dans une seule langue, les scores varient selon la phrase prononcée (0,516 en anglais après un enrôlement en anglais).
 2. **Brouhaha.** À 10 dB, 11 à 29 % des vraies personnes sont refusées selon le banc ; à 5 dB, 42 % (banc v2). Des voix parasites brouillent ce que le modèle écoute.
 3. **Distance au micro.** Les scores baissent (mini-corpus), tout en restant au-dessus du seuil de l'époque.
 4. **Voix proches.** Les rares imposteurs acceptés sont des personnes de même hauteur de voix. C'est pour cela que les seuils sont réglés sur les voix proches.
 
 **Analyse chiffrée sur le test final**
+
 - **Durée de test courte et bruit** : c'est la combinaison la plus défavorable. Avec un enrôlement de 3 s, un test de 3 s et du brouhaha, 47,5 % des vraies personnes sont refusées ; jusqu'à 10 s de test, 29,3 %. Laisser parler la personne plus longtemps aide nettement.
 - **Enrôlement court** : à 3 s, 11,6 % de refus en propre, contre 8,1 % à 5 s et 7,6 % à 10 s. Les 14 enrôlements plus courts que prévu concernent des personnes ayant peu d'enregistrements, et contribuent probablement aux refus.
 - **Imposteurs** : aucun cas critique. Au plus 0,2 % d'imposteurs acceptés, quelle que soit la condition.
 
-**Écoute des pires paires** (script `src/pires_paires.py`, test final, enrôlement 3 s, test jusqu'à 10 s, propre)
+**Les pires essais du test final** (script `src/pires_paires.py`, enrôlement 3 s, test jusqu'à 10 s, propre, seuil 0,428)
 
-[À compléter après écoute : pour les 5 vraies personnes refusées avec les scores les plus bas et les 5 imposteurs avec les scores les plus hauts, noter la cause probable (bruit, voix chuchotée, enregistrement très court, micro saturé, voix très proches…).]
+| Type | Personne enrôlée | Personne testée | Score | Décision |
+|---|---|---|---|---|
+| Vraie personne refusée | cv_112 | cv_112 | 0,144 | refusée |
+| Vraie personne refusée | cv_112 | cv_112 | 0,231 | refusée |
+| Vraie personne refusée | cv_112 | cv_112 | 0,261 | refusée |
+| Vraie personne refusée | cv_019 | cv_019 | 0,271 | refusée |
+| Vraie personne refusée | cv_112 | cv_112 | 0,280 | refusée |
+| Imposteur au score élevé | cv_019 | cv_016 | 0,488 | acceptée |
+| Imposteur au score élevé | cv_019 | cv_016 | 0,450 | acceptée |
+| Imposteur au score élevé | cv_019 | cv_016 | 0,440 | acceptée |
+| Imposteur au score élevé | cv_136 | cv_131 | 0,406 | refusée |
+| Imposteur au score élevé | cv_019 | cv_016 | 0,394 | refusée |
 
-| Type | Fichier de test | Score | Cause probable |
-|---|---|---|---|
-| Vraie personne refusée | | | |
-| Imposteur au score élevé | | | |
+**Lecture : deux schémas très nets.** Les causes ci-dessous sont des **hypothèses**, non vérifiées à l'écoute.
+
+- **Les refus viennent presque tous d'une seule personne** : 4 des 5 pires refus concernent `cv_112`. Le problème tient donc à cette voix ou à ses enregistrements plutôt qu'au système en général. Causes possibles : un enrôlement plus court que prévu (peu de clips), un micro ou une pièce différents d'un enregistrement à l'autre, du bruit.
+- **Les seuls imposteurs acceptés forment un seul couple** : `cv_019` enrôlé et `cv_016` testé, 3 acceptations (0,44 à 0,49). Leurs enregistrements portent des numéros très proches (395697xx et 395784xx), donc ils ont été faits presque au même moment. Hypothèse : la même personne avec deux comptes Common Voice, ou deux personnes enregistrées avec le même micro dans la même pièce. Dans le premier cas, ce ne serait pas une erreur du système, mais une limite de l'étiquetage des données. Ce couple n'appartient d'ailleurs pas aux « voix proches » par la hauteur, ce qui explique les 0,0 % d'imposteurs acceptés parmi les voix proches.
 
 ## 11. Limites et attaques
 
 **Limites de l'évaluation**
+
 - Tous les chiffres viennent de français lu. La démo utilisera de la parole spontanée, en plusieurs langues.
 - Le banc de validation cv26 est de taille modeste (320 positives, 320 voix proches) : environ ±1 point sur les taux. Les seuils ont toutefois été vérifiés sur la grande validation cv27 (près de 84 000 essais d'imposteurs).
 - Le mini-corpus ne compte que 2 personnes : il illustre, il ne prouve pas.
@@ -420,6 +451,7 @@ Contre tous les imposteurs (hasard et voix proches), en propre, l'EER est de 1,7
 - Le **bruit** est simulé, pas enregistré.
 
 **Risques d'attaques.** Le système vérifie que la voix *ressemble* à celle de la personne enrôlée. Il ne vérifie pas qu'elle est *vivante* :
+
 - **Rejeu** : un enregistrement de la personne joué sur un téléphone a de fortes chances d'être accepté.
 - **Voix synthétique ou clonée** : le système n'est pas en capacité de la détecter. La détection d'usurpation est un problème à part entière.
 - **Imitation** par une personne de voix proche : partiellement couverte par le seuil réglé sur les voix proches.
@@ -443,11 +475,13 @@ Contre tous les imposteurs (hasard et voix proches), en propre, l'EER est de 1,7
 **Ce qui marche :** des empreintes pré-entraînées, une normalisation simple, une préparation de la voix identique dans l'application et dans les mesures, et un seuil réglé avec soin sur des imposteurs difficiles, puis vérifié sur 290 personnes. Le test final confirme que le système généralise, avec une sécurité largement tenue.
 
 **Ce qui n'a pas marché, et pourquoi**
+
 - L'AS-norm : elle laisse passer des imposteurs à score élevé.
 - Le metric learning : la v1 a sur-appris ; la v2 a été corrigée mais ne donne aucun gain fiable.
 - La moyenne cv27 seule : meilleure sur cv27, moins bonne sur cv26. Elle ne correspond pas à toutes les populations évaluées.
 
 **Suites possibles**
+
 - Mesurer et corriger la sensibilité au changement de langue, par exemple avec un enrôlement de 5 s ou une moyenne multilingue (à tester avec prudence, voir 3.4).
 - Tester la moyenne mélangée cv26 + cv27 (refus moyen sur cv27 : 16,9 % → 13,0 %), en recalculant les seuils.
 - Relancer la triplet loss sur les 655 personnes d'entraînement cv27, pour séparer l'effet des données de celui de la loss.

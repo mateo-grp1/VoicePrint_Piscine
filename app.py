@@ -1,31 +1,72 @@
-# app.py — Démo v1 de Voiceprint (Streamlit)
-# Enrôler une voix (3, 5 ou 10 s), vérifier une nouvelle voix, expliquer, supprimer l'empreinte.
-# Configuration retenue sur la validation : ECAPA + moyenne soustraite, enrôlement en un bloc,
-# seuil à 1 % d'imposteurs acceptés, confiance calibrée.
-# La voix est préparée par src/preparation.py : la MÊME recette que le banc d'essai v3.
-# Prérequis : avoir lancé src/build_bench_v3.py puis src/eval_v3.py (crée models/reference_demo.npz).
+# app.py — Démo de Voiceprint (Streamlit), interface épurée en 3 étapes
+#   1. Enregistrer une voix (3, 5 ou 10 s, avec consentement)
+#   2. Tester des voix, autant de fois qu'on veut (décision, confiance, "Pourquoi ?")
+#   3. Supprimer la voix enregistrée
+# Configuration figée : ECAPA + moyenne soustraite, seuils à 1 % d'imposteurs (0,428 / 0,447 / 0,482), confiance calibrée.
+# La voix est préparée par src/preparation.py : la MÊME recette que les bancs d'essai.
+# Prérequis : models/reference_demo.npz (src/eval_v3.py puis src/figer_seuils.py)
 # À lancer depuis la racine du projet : streamlit run app.py
 import io
 import json
 import sys
 from pathlib import Path
+
 import numpy as np
-import librosa
 import streamlit as st
 
 sys.path.insert(0, "src")
 from ecapa_eval import charger_modele                      # noqa: E402
 from normalisation import preparer, seuil_validation        # noqa: E402
 from caracteristiques import extraire, expliquer            # noqa: E402
-from preparation import (SR, TEST_MAX, charger_brut, empreinte_brute,  # noqa: E402
+from preparation import (SR, charger_brut, empreinte_brute,  # noqa: E402
                          enrolement, garder_parole, test as decouper_test)
 
-DUREES = [3, 5, 10]                                  # durées d'enrôlement proposées (secondes)
-AFFICHER_CONSEILS = False                            # conseils de qualité (volume, bruit) : désactivés pour l'instant
+DUREES = [3, 5, 10]
 EMPREINTE = Path("data/enrolement/empreinte.npz")    # data/ est exclu de GitHub
 REFERENCE = Path("models/reference_demo.npz")
 
-st.set_page_config(page_title="Voiceprint — démo v1", page_icon="🎙️")
+st.set_page_config(page_title="Voiceprint", page_icon="🎙️", layout="centered",
+                   initial_sidebar_state="collapsed")
+
+# ---------- Apparence : épurée, aérée ----------
+st.markdown("""
+<style>
+  .block-container {max-width: 680px; padding-top: 3.5rem; padding-bottom: 5rem;}
+  #MainMenu, footer {visibility: hidden;}
+  .titre {font-size: 2.6rem; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 0;}
+  .sous-titre {color: #6b7280; font-size: 1.05rem; margin-top: 0.2rem;}
+  .avertissement {color: #9ca3af; font-size: 0.8rem; margin-top: 0.8rem;}
+  .etape {display: flex; align-items: center; gap: 0.8rem; margin: 0 0 1.2rem 0;}
+  .pastille {width: 2rem; height: 2rem; border-radius: 50%; background: #1f3a5f; color: white;
+             display: flex; align-items: center; justify-content: center; font-weight: 700;}
+  .pastille.inactive {background: #d1d5db;}
+  .etape-titre {font-size: 1.35rem; font-weight: 650;}
+  .decision {text-align: center; padding: 1.6rem 1rem; border-radius: 18px; margin: 1.2rem 0 0.6rem 0;}
+  .decision .verdict {font-size: 1.9rem; font-weight: 700;}
+  .decision .confiance {font-size: 1.05rem; margin-top: 0.3rem; opacity: 0.85;}
+  .oui {background: #ecf7f0; color: #1b6b3a;}
+  .non {background: #fbeeee; color: #9b2c2c;}
+  .detail {text-align: center; color: #9ca3af; font-size: 0.8rem;}
+  .etat {padding: 0.9rem 1.1rem; border-radius: 14px; background: #f3f6fa; color: #1f3a5f;}
+  .vide {color: #9ca3af;}
+  button[kind="primary"] {background: #1f3a5f !important; border-color: #1f3a5f !important; color: white !important;}
+  button[kind="primary"]:hover {background: #2c5282 !important; border-color: #2c5282 !important;}
+  button[data-variant="segmented_control"][aria-checked="true"] {background: #1f3a5f !important; border-color: #1f3a5f !important; color: white !important;}
+  button[data-variant="segmented_control"][aria-checked="true"] * {color: white !important;}
+</style>
+""", unsafe_allow_html=True)
+
+
+def espace(hauteur=2.5):
+    st.markdown(f"<div style='height:{hauteur}rem'></div>", unsafe_allow_html=True)
+
+
+def entete_etape(numero, titre, active=True):
+    classe = "pastille" if active else "pastille inactive"
+    couleur = "" if active else "color:#9ca3af"
+    st.markdown(f"<div class='etape'><div class='{classe}'>{numero}</div>"
+                f"<div class='etape-titre' style='{couleur}'>{titre}</div></div>",
+                unsafe_allow_html=True)
 
 
 # ---------- Chargements (une seule fois) ----------
@@ -43,57 +84,22 @@ def lire_npz(chemin):
 @st.cache_resource
 def reference():
     r = lire_npz(REFERENCE)
-    if "seuils" in r:     # banc v3 : seuils mesurés avec la même préparation que la démo
+    if "seuils" in r:
         seuils = {int(d): float(s) for d, s in json.loads(str(r["seuils"])).items()}
-    else:                 # ancien fichier (banc v2)
+    else:
         seuils = {d: seuil_validation(d) for d in DUREES}
     return {"moyenne": r["moyenne"], "a": float(r["calib_a"]), "b": float(r["calib_b"]),
-            "ecart_intra": json.loads(str(r["ecart_intra"])), "seuils": seuils,
-            "banc": str(r["banc"]) if "banc" in r else "v2"}
+            "ecart_intra": json.loads(str(r["ecart_intra"])), "seuils": seuils}
 
 
-# ---------- Outils audio ----------
+# ---------- Outils ----------
 def lire_audio(fichier):
-    """Audio du micro -> 16 kHz mono, puis on ne garde QUE la parole :
-    les silences du début, de la fin ET les pauses au milieu sont retirés, puis les morceaux de parole sont recollés.
-    Ainsi, "3 s d'enrôlement" = 3 s de voix réelle, pas 3 s dont une partie de silence."""
+    """Audio du micro -> 16 kHz mono, puis on ne garde QUE la parole (silences et pauses retirés)."""
     brut = charger_brut(io.BytesIO(fichier.getvalue()))
-    return brut, garder_parole(brut)
-
-
-def qualite(brut):
-    """Conseils sur l'enregistrement : volume et bruit de fond (rapport signal/bruit estimé)."""
-    conseils = []
-    pic = float(np.abs(brut).max()) if len(brut) else 0.0
-    rms = librosa.feature.rms(y=brut, frame_length=1024, hop_length=512)[0] + 1e-9
-    snr = 20 * np.log10(np.percentile(rms, 90) / np.percentile(rms, 10))
-    if pic > 0.99:
-        conseils.append(("warning", "Le son sature : éloigne-toi un peu du micro ou parle moins fort."))
-    elif pic < 0.05:
-        conseils.append(("warning", "Le son est très faible : rapproche-toi du micro."))
-    if snr < 10:
-        conseils.append(("error", f"Beaucoup de bruit autour (rapport voix/bruit ≈ {snr:.0f} dB). "
-                                  "Rapproche-toi du micro ou trouve un endroit plus calme : "
-                                  "le système risque de ne pas reconnaître la personne."))
-    elif snr < 20:
-        conseils.append(("warning", f"Un peu de bruit autour (rapport voix/bruit ≈ {snr:.0f} dB). "
-                                    "Parler plus près du micro améliore la reconnaissance."))
-    return snr, conseils
-
-
-def afficher_qualite(brut):
-    if not AFFICHER_CONSEILS:      # le micro intégré du PC déclenchait des alertes de saturation injustifiées
-        return
-    snr, conseils = qualite(brut)
-    for niveau, texte in conseils:
-        (st.error if niveau == "error" else st.warning)(texte)
-    if not conseils:
-        texte = "> 40 dB" if snr > 40 else f"≈ {snr:.0f} dB"
-        st.caption(f"Qualité d'enregistrement correcte (rapport voix/bruit {texte}).")
+    return garder_parole(brut)
 
 
 def empreinte(y):
-    """Empreinte ECAPA avec la moyenne du train soustraite (réglage retenu au jour 3)."""
     return preparer(empreinte_brute(modele(), y), reference()["moyenne"])[0]
 
 
@@ -102,113 +108,117 @@ def confiance(score):
     return 1 / (1 + np.exp(-(ref["a"] * score + ref["b"])))
 
 
-# ---------- Page ----------
-st.title("🎙️ Voiceprint — démo v1")
-st.warning("Démonstration pédagogique, **pas un système d'authentification sécurisé** "
-           "(il ne détecte pas un enregistrement rejoué ni une voix clonée). "
-           "L'empreinte vocale est une donnée biométrique : seule l'empreinte est stockée "
-           "(jamais l'audio), sur cet ordinateur, et elle peut être supprimée à tout moment.")
+def supprimer():
+    EMPREINTE.unlink(missing_ok=True)
+    st.session_state["passage"], st.session_state["historique"] = 1, []
+
+
+# ---------- En-tête ----------
+st.markdown("<div class='titre'>🎙️ Voiceprint</div>"
+            "<div class='sous-titre'>Ta voix, ton identité</div>"
+            "<div class='avertissement'>Démonstration pédagogique, pas un système de sécurité. "
+            "Seule l'empreinte de la voix est gardée sur cet ordinateur, jamais l'enregistrement.</div>",
+            unsafe_allow_html=True)
 
 if not REFERENCE.exists():
-    st.error("Fichier models/reference_demo.npz introuvable : lance d'abord `python src/calibration.py`.")
+    st.error("Réglages introuvables (models/reference_demo.npz) : lance `python src/eval_v3.py` "
+             "puis `python src/figer_seuils.py`.")
     st.stop()
 
-with st.sidebar:
-    st.header("Réglages documentés")
-    st.markdown("**Modèle** : ECAPA-TDNN pré-entraîné (speechbrain/spkrec-ecapa-voxceleb)\n\n"
-                "**Normalisation** : soustraction de l'empreinte moyenne (locuteurs d'entraînement)\n\n"
-                f"**Seuils** (validation Common Voice, banc {reference()['banc']}, voix proches, "
-                "1 % d'imposteurs acceptés) :")
-    for d, s in reference()["seuils"].items():
-        st.markdown(f"- enrôlement {d} s : **{s:.3f}**")
-    st.caption("La confiance (%) est calibrée sur la validation, en supposant une chance sur deux au départ.")
+st.session_state.setdefault("passage", 1)
+st.session_state.setdefault("historique", [])
+enrole = EMPREINTE.exists()
+espace(3)
 
-# 1. Enrôlement
-st.header("1. Enrôlement")
-if EMPREINTE.exists():
+# ---------- 1. Enregistrer une voix ----------
+entete_etape(1, "Enregistrer une voix")
+if enrole:
     d_enrol = int(lire_npz(EMPREINTE)["duree"])
-    st.success(f"Une empreinte est enregistrée (enrôlement de {d_enrol} s). "
-               "Passe à l'étape 2, ou supprime-la (étape 3) pour changer de personne ou de durée.")
+    st.markdown(f"<div class='etat'>✅ Voix enregistrée ({d_enrol} s de parole)</div>", unsafe_allow_html=True)
 else:
-    duree = st.radio("Durée d'enrôlement", DUREES, horizontal=True, format_func=lambda d: f"{d} s",
-                     help="3 s est la durée visée pour la démo ; 5 et 10 s permettent de comparer.")
-    accord = st.checkbox("J'accepte que mon empreinte vocale soit calculée et stockée "
-                         "sur cet ordinateur jusqu'à sa suppression.")
-    audio = st.audio_input(f"Parle librement pendant au moins {duree} s", key=f"enrol_{duree}",
-                           disabled=not accord)
+    duree = st.segmented_control("Durée de parole", DUREES, default=3, format_func=lambda d: f"{d} s",
+                                 selection_mode="single") or 3
+    accord = st.checkbox("J'accepte que l'empreinte de ma voix soit enregistrée sur cet ordinateur "
+                         "(elle peut être supprimée à tout moment).")
+    audio = st.audio_input(f"Parlez librement pendant au moins {duree} secondes",
+                           key=f"enrol_{duree}", disabled=not accord)
     if audio:
-        brut, y = lire_audio(audio)
-        afficher_qualite(brut)
+        y = lire_audio(audio)
         parole = len(y) / SR
         if parole < duree:
-            st.error(f"Seulement {parole:.1f} s de parole détectée : il en faut au moins {duree}. Recommence.")
-        else:
-            st.write(f"Parole détectée : {parole:.1f} s → on garde les **{duree} premières secondes**.")
-            if st.button("Enregistrer mon empreinte"):
-                y = enrolement(y, duree)
-                EMPREINTE.parent.mkdir(parents=True, exist_ok=True)
-                np.savez(EMPREINTE, emb=empreinte(y), duree=duree,
-                         caracteristiques=json.dumps(extraire(y)))
-                st.rerun()
+            st.warning(f"Seulement {parole:.1f} s de voix détectée, il en faut {duree}. Recommencez.")
+        elif st.button("Enregistrer ma voix", type="primary", use_container_width=True):
+            y = enrolement(y, duree)
+            EMPREINTE.parent.mkdir(parents=True, exist_ok=True)
+            np.savez(EMPREINTE, emb=empreinte(y), duree=duree, caracteristiques=json.dumps(extraire(y)))
+            st.rerun()
 
-# 2. Vérification
-st.header("2. Vérification")
-if not EMPREINTE.exists():
-    st.info("Fais d'abord l'enrôlement.")
+espace()
+
+# ---------- 2. Tester une voix ----------
+entete_etape(2, "Tester une voix", active=enrole)
+if not enrole:
+    st.markdown("<div class='vide'>Enregistrez d'abord une voix à l'étape 1.</div>", unsafe_allow_html=True)
 else:
     enr = lire_npz(EMPREINTE)
-    d_enrol = int(enr["duree"])
-    seuil = reference()["seuils"][d_enrol]
-    st.session_state.setdefault("passage", 1)
-    st.session_state.setdefault("historique", [])
+    seuil = reference()["seuils"][int(enr["duree"])]
     n = st.session_state["passage"]
-
-    st.markdown(f"**Passage n° {n}** : la personne suivante parle, l'enrôlement reste le même.")
-    audio = st.audio_input(f"Quelqu'un parle (au moins 3 s, jusqu'à {TEST_MAX} s analysées)",
-                           key=f"verification_{n}")
+    audio = st.audio_input(f"Personne n° {n} : parlez quelques secondes", key=f"test_{n}")
     if audio:
-        brut, y = lire_audio(audio)
-        afficher_qualite(brut)
+        y = lire_audio(audio)
         parole = len(y) / SR
         if parole < 1.5:
-            st.error("Trop court : parle au moins 3 secondes.")
+            st.warning("Trop court : parlez au moins 3 secondes.")
         else:
             y = decouper_test(y)
             score = float(enr["emb"] @ empreinte(y))
             accepte = score >= seuil
             if accepte:
-                st.success("## ✅ C'est la personne enrôlée")
-                st.metric("Confiance", f"{confiance(score):.0%}")
+                st.markdown(f"<div class='decision oui'><div class='verdict'>✅ Même personne</div>"
+                            f"<div class='confiance'>Confiance {confiance(score):.0%}</div></div>",
+                            unsafe_allow_html=True)
             else:
-                st.error("## ❌ Ce n'est pas la personne enrôlée")
-            st.caption(f"Score brut {score:.3f} · seuil {seuil:.3f} · enrôlement {d_enrol} s · "
-                       f"parole analysée {min(parole, TEST_MAX):.1f} s")
-            if parole < 3:
-                st.caption("Moins de 3 s de parole : la décision est moins fiable.")
+                st.markdown("<div class='decision non'><div class='verdict'>❌ Personne différente</div></div>",
+                            unsafe_allow_html=True)
+            st.markdown(f"<div class='detail'>score {score:.3f} · seuil {seuil:.3f}</div>", unsafe_allow_html=True)
 
-            with st.expander("Pourquoi ? Les plus grandes différences avec la voix enrôlée"):
+            with st.expander("Pourquoi ?"):
                 a = json.loads(str(enr["caracteristiques"]))
                 for ligne in expliquer(a, extraire(y), reference()["ecart_intra"]):
                     st.write("• " + ligne)
-                st.caption("Classées selon l'écart par rapport à la variation habituelle chez une même personne. "
-                           "L'empreinte ECAPA combine bien plus d'indices que ces quelques mesures.")
+                st.caption("La décision repose sur l'empreinte complète de la voix ; "
+                           "ces mesures servent seulement à l'expliquer.")
 
-            if st.button("➡️ Passage suivant", type="primary"):
+            espace(0.8)
+            if st.button("Personne suivante →", type="primary", use_container_width=True):
                 st.session_state["historique"].append({
-                    "passage": n, "décision": "✅ reconnue" if accepte else "❌ autre personne",
-                    "confiance": f"{confiance(score):.0%}" if accepte else "—",
-                    "score brut": round(score, 3), "parole (s)": round(min(parole, TEST_MAX), 1)})
+                    "Personne": n, "Résultat": "✅ même personne" if accepte else "❌ différente",
+                    "Confiance": f"{confiance(score):.0%}" if accepte else "—"})
                 st.session_state["passage"] = n + 1
                 st.rerun()
 
     if st.session_state["historique"]:
-        st.subheader("Passages précédents")
-        st.dataframe(st.session_state["historique"], hide_index=True, use_container_width=True)
+        espace(1)
+        with st.expander(f"Historique ({len(st.session_state['historique'])} personnes)"):
+            st.dataframe(st.session_state["historique"], hide_index=True, use_container_width=True)
 
-# 3. Suppression
-st.header("3. Supprimer l'empreinte")
-if EMPREINTE.exists() and st.button("Supprimer mon empreinte"):
-    EMPREINTE.unlink()
-    st.session_state["passage"], st.session_state["historique"] = 1, []
-    st.success("Empreinte supprimée.")
-    st.rerun()
+espace()
+
+# ---------- 3. Supprimer la voix ----------
+entete_etape(3, "Supprimer la voix", active=enrole)
+if enrole:
+    if st.button("Supprimer l'empreinte enregistrée", use_container_width=True):
+        supprimer()
+        st.toast("Empreinte supprimée.")
+        st.rerun()
+else:
+    st.markdown("<div class='vide'>Aucune voix enregistrée.</div>", unsafe_allow_html=True)
+
+espace(4)
+with st.expander("Détails techniques"):
+    seuils = reference()["seuils"]
+    st.caption("Modèle : ECAPA-TDNN pré-entraîné (speechbrain/spkrec-ecapa-voxceleb), empreinte de 192 nombres, "
+               "moyenne soustraite, comparaison par cosinus.")
+    st.caption("Seuils (au plus 1 % d'imposteurs acceptés, voix proches) : "
+               + " · ".join(f"{d} s : {s:.3f}" for d, s in seuils.items()))
+    st.caption("Confiance calibrée sur la validation, en supposant une chance sur deux au départ.")

@@ -13,8 +13,9 @@ Projet individuel réalisé par **Matéo Lebourdais** pendant la Piscine **IA La
 | **Modèle retenu** | ECAPA-TDNN pré-entraîné (`speechbrain/spkrec-ecapa-voxceleb`, SpeechBrain 1.1.2) |
 | **Calcul du score** | Similarité cosinus entre deux empreintes de 192 nombres, après soustraction de l'empreinte moyenne |
 | **Enrôlement visé** | 3 secondes de parole (5 s et 10 s aussi proposées) |
-| **Seuils** (1 % d'imposteurs acceptés, voix proches, validation) | 0,416 (3 s) · 0,447 (5 s) · 0,482 (10 s) |
-| **Résultat principal** (validation, banc v3, enrôlement 3 s, voix proches, test jusqu'à 10 s) | EER 1,9 % · minDCF 0,172 · 5,3 % de vraies personnes refusées au seuil |
+| **Seuils** (au plus 1 % d'imposteurs acceptés, voix proches, vérifiés sur la validation cv26 et sur 290 personnes cv27) | 0,428 (3 s) · 0,447 (5 s) · 0,482 (10 s) |
+| **Résultat en validation** (banc v3, enrôlement 3 s, voix proches, test jusqu'à 10 s) | EER 1,9 % · minDCF 0,172 · 5,3 % de vraies personnes refusées |
+| **Résultat du test final** (29 personnes jamais utilisées, enrôlement 3 s, voix proches, test jusqu'à 10 s) | EER 3,0 % · AUC 0,997 · 0 % d'imposteurs acceptés · 11,6 % de vraies personnes refusées |
 | **Comparaison baseline / ECAPA** (mêmes paires de validation v1) | Baseline MFCC + SVM : EER 6,8 % · ECAPA : EER 2,1 % |
 | **Données** | Common Voice français 26.0 et 27.0, licence CC0-1.0 |
 
@@ -22,7 +23,7 @@ Projet individuel réalisé par **Matéo Lebourdais** pendant la Piscine **IA La
 
 | Document | Contenu |
 |---|---|
-| [`docs/RAPPORT.md`](docs/RAPPORT.md) | Rapport technique : protocole, tableau comparatif, ablations, explicabilité, calibration, cas d'échec, limites et attaques |
+| [`docs/RAPPORT.md`](docs/RAPPORT.md) | Rapport technique : protocole, tableau comparatif, ablations, metric learning, explicabilité, grande validation, seuils et calibration, test final, cas d'échec, limites et attaques |
 | [`docs/FICHE_CORPUS.md`](docs/FICHE_CORPUS.md) | Fiche des corpus : source, accès, licence, volume, composition, découpage, paires, risques de fuite, limites |
 
 ## Installation
@@ -96,13 +97,28 @@ python src/build_bench_v3.py       # mêmes paires, voix préparées exactement 
 python src/eval_v3.py              # choix de la moyenne + seuils + calibration
 ```
 
-### 7. Test final
+### 7. Grande validation (290 personnes Common Voice 27.0) et seuils finaux
+
+```
+python src/separer_cv27.py         # 290 personnes cv27 en validation, le reste en entraînement (anti-fuite)
+# Exécuter notebooks/05_banc_cv27_colab.ipynb sur Colab, puis copier banc_cv27val.npz et banc_cv27val_info.csv dans data/cv27/
+python src/eval_cv27val.py         # configuration actuelle mesurée sur 290 personnes (ne modifie pas la démo)
+python src/figer_seuils.py         # seuils finaux : le plus prudent de toutes les validations -> configuration figée
+```
+
+### 8. Test final
+
+```
+python src/test_final.py           # évaluation UNIQUE sur les 29 personnes de test, configuration figée
+python src/pires_paires.py         # liste les pires essais du test final, à écouter (cas d'échec)
+```
 
 ## Démonstration
 
 ```
 python src/build_bench_v3.py       # une seule fois
 python src/eval_v3.py              # crée models/reference_demo.npz
+python src/figer_seuils.py         # applique les seuils finaux (0,428 / 0,447 / 0,482)
 streamlit run app.py
 ```
 
@@ -116,7 +132,7 @@ streamlit run app.py
 app.py                  Démonstration Streamlit
 requirements.txt        Dépendances
 src/                    Scripts Python
-notebooks/              Exploration et préparation Colab de Common Voice 27.0
+notebooks/              Exploration (01-03), préparation Colab de Common Voice 27.0 (04), grande validation (05)
 results/                Tableaux et figures de résultats
 docs/                   Rapport et fiche des corpus
 data/   (hors GitHub)   Audio, paires, caches d'empreintes, mini-corpus, empreinte de la démo
@@ -126,7 +142,7 @@ models/ (hors GitHub)   ECAPA téléchargé, réglages de la démo, petits modè
 ## Règles suivies
 
 - **Séparation par locuteur** jamais par enregistrement. Les intersections sont vérifiées automatiquement, et aucun locuteur de validation ou de test cv26 ne se trouve dans les données d'entraînement cv27.
-- **Seuils et calibration** choisis sur la validation, jamais sur le test.
+- **Seuils et calibration** choisis sur la validation, jamais sur le test. Le test final a été lancé une seule fois, sans aucun réglage ensuite.
 - **Mêmes paires et même fonction d'évaluation** pour toutes les approches.
 - **Minimisation** : l'audio de démo n'est jamais conservé, et l'archive de 28 Go de Common Voice 27.0 a été supprimée après extraction des empreintes.
 
