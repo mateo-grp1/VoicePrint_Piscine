@@ -1,0 +1,4 @@
+enrôlement,"cv26, test 3s","cv27 quart, test 3s","cv27 ≤14Hz, test 3s","cv26, test max10s","cv27 quart, test max10s","cv27 ≤14Hz, test max10s",seuil retenu,fixé par,ancien
+3 s,0.416,0.416,0.416,0.416,0.426,0.428,0.428,"cv27 ≤14Hz, test max10s",0.416
+5 s,0.447,0.429,0.431,0.447,0.442,0.442,0.447,"cv26, test 3s",0.447
+10 s,0.482,0.447,0.447,0.482,0.465,0.465,0.482,"cv26, test 3s",0.482

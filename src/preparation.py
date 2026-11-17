@@ -42,4 +42,5 @@ def test(parole, duree_max=TEST_MAX):
 def empreinte_brute(modele, y):
     """Empreinte ECAPA (192 nombres) d'un signal, sans normalisation."""
     with torch.no_grad():
-        return modele.encode_batch(torch.tensor(y, dtype=torch.float32).unsqueeze(0)).squeeze().numpy()
+        # .cpu() : sans effet sur le PC, nécessaire si le modèle tourne sur GPU (Colab)
+        return modele.encode_batch(torch.tensor(y, dtype=torch.float32).unsqueeze(0)).squeeze().cpu().numpy()
