@@ -32,6 +32,18 @@ Projet individuel réalisé par **Matéo Lebourdais** pendant la Piscine **IA La
 - Python **3.11.9**
 - **ffmpeg** dans le PATH (pour convertir les fichiers MP3)
 
+**Commandes** (Windows, dans un terminal PowerShell)
+
+```
+git clone https://github.com/mateo-grp1/VoicePrint_Piscine.git
+cd VoicePrint_Piscine
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+Sous macOS / Linux, la ligne d'activation devient `source .venv/bin/activate`. Au premier lancement, le modèle ECAPA-TDNN (environ 80 Mo) est téléchargé automatiquement depuis Hugging Face.
+
 ## Données
 
 Aucune donnée n'est versionnée : `data/` et `models/` sont dans le `.gitignore`, ainsi que tous les fichiers audio. La licence de Common Voice interdit de redistribuer le corpus, et les enregistrements du mini-corpus sont personnels.
@@ -122,8 +134,8 @@ python src/figer_seuils.py         # applique les seuils finaux (0,428 / 0,447 /
 streamlit run app.py
 ```
 
-1. **Enrôlement** : on choisit la durée (3 / 5 / 10 s), on coche ensuite le consentement, puis on parle librement. Les silences et les pauses sont retirés, donc « 3 s » veut dire 3 s de voix réelle.
-2. **Vérification** : chaque personne parle à son tour, jusqu'à 10 s de parole analysées. Le système affiche une décision oui ✅ / non ❌, avec une confiance calibrée si la personne est acceptée. Le score brut et le seuil sont aussi affichés. Autant de personnes que l'on veut peuvent se faire tester sans nouvel enrôlement.
+1. **Enrôlement** : on choisit la durée (3 / 5 / 10 s), on coche ensuite le consentement, puis on parle librement au micro **ou** on importe un fichier audio (wav, mp3, flac, ogg), par exemple un enregistrement fourni par l'organisation. Les silences et les pauses sont retirés, donc « 3 s » veut dire 3 s de voix réelle.
+2. **Vérification** : chaque personne parle à son tour (micro ou fichier audio), jusqu'à 10 s de parole analysées. Le système affiche une décision oui ✅ / non ❌, avec une confiance calibrée si la personne est acceptée. Le score brut et le seuil sont aussi affichés. Autant de personnes que l'on veut peuvent se faire tester sans nouvel enrôlement.
 3. **Suppression** : un bouton efface l'empreinte (`data/enrolement/empreinte.npz`).
 
 ## Organisation du dépôt

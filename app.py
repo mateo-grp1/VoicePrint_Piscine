@@ -1,5 +1,5 @@
 # app.py — Démo de Voiceprint (Streamlit), interface épurée en 3 étapes
-#   1. Enregistrer une voix (3, 5 ou 10 s, avec consentement)
+#   1. Enregistrer une voix (3, 5 ou 10 s, avec consentement), au micro ou depuis un fichier audio
 #   2. Tester des voix, autant de fois qu'on veut (décision, confiance, "Pourquoi ?")
 #   3. Supprimer la voix enregistrée
 # Configuration figée : ECAPA + moyenne soustraite, seuils à 1 % d'imposteurs (0,428 / 0,447 / 0,482), confiance calibrée.
@@ -22,6 +22,8 @@ from preparation import (SR, charger_brut, empreinte_brute,  # noqa: E402
                          enrolement, garder_parole, test as decouper_test)
 
 DUREES = [3, 5, 10]
+FORMATS = ["wav", "mp3", "flac", "ogg"]              # fichiers audio acceptés (ex. enregistrements fournis par l'organisation)
+SOURCES = ["🎙️ Micro", "📁 Fichier audio"]
 EMPREINTE = Path("data/enrolement/empreinte.npz")    # data/ est exclu de GitHub
 REFERENCE = Path("models/reference_demo.npz")
 
@@ -99,6 +101,15 @@ def lire_audio(fichier):
     return garder_parole(brut)
 
 
+def choisir_audio(cle, consigne, actif=True):
+    """Micro OU fichier audio : renvoie l'enregistrement choisi (ou None)."""
+    source = st.segmented_control("Source", SOURCES, default=SOURCES[0], key=f"source_{cle}",
+                                  label_visibility="collapsed", disabled=not actif) or SOURCES[0]
+    if source == SOURCES[0]:
+        return st.audio_input(consigne, key=f"micro_{cle}", disabled=not actif)
+    return st.file_uploader(consigne, type=FORMATS, key=f"fichier_{cle}", disabled=not actif)
+
+
 def empreinte(y):
     return preparer(empreinte_brute(modele(), y), reference()["moyenne"])[0]
 
@@ -140,8 +151,7 @@ else:
                                  selection_mode="single") or 3
     accord = st.checkbox("J'accepte que l'empreinte de ma voix soit enregistrée sur cet ordinateur "
                          "(elle peut être supprimée à tout moment).")
-    audio = st.audio_input(f"Parlez librement pendant au moins {duree} secondes",
-                           key=f"enrol_{duree}", disabled=not accord)
+    audio = choisir_audio(f"enrol_{duree}", f"Au moins {duree} secondes de parole", actif=accord)
     if audio:
         y = lire_audio(audio)
         parole = len(y) / SR
@@ -163,7 +173,7 @@ else:
     enr = lire_npz(EMPREINTE)
     seuil = reference()["seuils"][int(enr["duree"])]
     n = st.session_state["passage"]
-    audio = st.audio_input(f"Personne n° {n} : parlez quelques secondes", key=f"test_{n}")
+    audio = choisir_audio(f"test_{n}", f"Personne n° {n} : quelques secondes de parole")
     if audio:
         y = lire_audio(audio)
         parole = len(y) / SR
